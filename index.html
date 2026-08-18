@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>Simple Mobile AR Lab - Motor Status (Pink to Green)</title>
+  <title>Simple Mobile AR Lab - AR Fish Status</title>
 
   <!-- Open-source libraries. The versions are pinned so A-Frame and AR.js match. -->
   <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
@@ -71,11 +71,11 @@
   </style>
 
   <script>
-    // A tiny reusable component that rotates an object without extra libraries.
+    // Component สำหรับหมุนวัตถุ (เอาไว้ให้ปลาว่ายวนเป็นวงกลม)
     AFRAME.registerComponent('spin-control', {
       schema: {
         axis: { type: 'string', default: 'y' },
-        speed: { type: 'number', default: 180 },
+        speed: { type: 'number', default: 90 }, // ปรับให้ปลาหมุนช้าลงหน่อย
         active: { type: 'boolean', default: true }
       },
 
@@ -93,8 +93,9 @@
 
     window.addEventListener('DOMContentLoaded', () => {
       const marker = document.querySelector('#hiro-marker');
-      const shaft = document.querySelector('#shaft');
-      const motorBody = document.querySelector('#motor-body');
+      const fishAssembly = document.querySelector('#fish-assembly');
+      const fishBody = document.querySelector('#fish-body');
+      const fishTail = document.querySelector('#fish-tail');
       const warningLamp = document.querySelector('#warning-lamp');
       const arLabel = document.querySelector('#ar-label');
       const topPanel = document.querySelector('#top-panel');
@@ -105,35 +106,39 @@
       let warning = false;
 
       marker.addEventListener('markerFound', () => {
-        topPanel.innerHTML = 'พบ Hiro Marker แล้ว — โมเดลมอเตอร์พร้อมใช้งาน<span class="hint">แตะปุ่มด้านล่างเพื่อทดลองควบคุม</span>';
+        topPanel.innerHTML = 'พบ Hiro Marker แล้ว — โมเดลปลาพร้อมใช้งาน<span class="hint">แตะปุ่มด้านล่างเพื่อทดลองควบคุม</span>';
       });
 
       marker.addEventListener('markerLost', () => {
         topPanel.innerHTML = 'เล็งกล้องไปที่ Hiro Marker<span class="hint">วาง Marker บนโต๊ะที่มีแสงเพียงพอและให้เห็นกรอบดำครบทั้งสี่ด้าน</span>';
       });
 
+      // ควบคุมการว่ายน้ำของปลา
       runButton.addEventListener('click', () => {
         running = !running;
-        shaft.setAttribute('spin-control', 'active', running);
-        runButton.textContent = running ? 'หยุดมอเตอร์' : 'เริ่มมอเตอร์';
+        fishAssembly.setAttribute('spin-control', 'active', running);
+        runButton.textContent = running ? 'หยุดว่ายน้ำ' : 'เริ่มว่ายน้ำ';
       });
 
+      // ควบคุมสถานะ สีของปลา และไฟแจ้งเตือน
       statusButton.addEventListener('click', () => {
         warning = !warning;
 
         if (warning) {
-          // สถานะแจ้งเตือน: เปลี่ยนมอเตอร์เป็น สีเขียว (#4caf50)
-          motorBody.setAttribute('color', '#4caf50');
+          // สถานะแจ้งเตือน: เปลี่ยนปลาเป็น สีเขียว (#4caf50)
+          fishBody.setAttribute('color', '#4caf50');
+          fishTail.setAttribute('color', '#4caf50');
           warningLamp.setAttribute('color', '#ff1744');
           warningLamp.setAttribute('material', 'emissive', '#ff1744');
-          arLabel.setAttribute('value', 'MOTOR M1\nSTATUS: WARNING');
+          arLabel.setAttribute('value', 'FISH 01\nSTATUS: WARNING');
           statusButton.textContent = 'เปลี่ยนเป็นปกติ';
         } else {
-          // สถานะปกติ: เปลี่ยนมอเตอร์กลับเป็น สีชมพู (#ff69b4)
-          motorBody.setAttribute('color', '#ff69b4');
+          // สถานะปกติ: เปลี่ยนปลากลับเป็น สีชมพู (#ff69b4)
+          fishBody.setAttribute('color', '#ff69b4');
+          fishTail.setAttribute('color', '#ff69b4');
           warningLamp.setAttribute('color', '#00e676');
           warningLamp.setAttribute('material', 'emissive', '#00c853');
-          arLabel.setAttribute('value', 'MOTOR M1\nSTATUS: NORMAL');
+          arLabel.setAttribute('value', 'FISH 01\nSTATUS: NORMAL');
           statusButton.textContent = 'จำลองคำเตือน';
         }
       });
@@ -148,7 +153,7 @@
   </div>
 
   <div id="controls">
-    <button id="run-button" type="button">หยุดมอเตอร์</button>
+    <button id="run-button" type="button">หยุดว่ายน้ำ</button>
     <button id="status-button" type="button">จำลองคำเตือน</button>
   </div>
 
@@ -167,62 +172,58 @@
       smooth-tolerance="0.01"
       smooth-threshold="3"
     >
-      <!-- Floor plate -->
-      <a-box
+      <!-- ฐานสำหรับวางปลา (ทำเป็นลักษณะคล้ายบ่อน้ำ/แท่นสีน้ำเงินใสๆ) -->
+      <a-cylinder
         position="0 0.04 0"
-        width="1.35"
-        height="0.08"
-        depth="0.85"
-        color="#455a64"
-        roughness="0.8"
-      ></a-box>
-
-      <!-- Two mounting feet -->
-      <a-box position="-0.42 0.15 0" width="0.18" height="0.18" depth="0.55" color="#263238"></a-box>
-      <a-box position="0.42 0.15 0" width="0.18" height="0.18" depth="0.55" color="#263238"></a-box>
-
-      <!-- Motor housing: cylinder lies along X axis -->
-      <!-- กำหนดสีเริ่มต้นเป็น สีชมพู (#ff69b4) -->
-      <a-cylinder
-        id="motor-body"
-        position="0 0.47 0"
-        rotation="0 0 90"
-        radius="0.32"
-        height="0.72"
-        segments-radial="32"
-        color="#ff69b4"
-        metalness="0.25"
-        roughness="0.55"
+        radius="0.8"
+        height="0.05"
+        color="#0288d1"
+        roughness="0.2"
+        opacity="0.8"
       ></a-cylinder>
 
-      <!-- Rear cap -->
-      <a-cylinder
-        position="-0.40 0.47 0"
-        rotation="0 0 90"
-        radius="0.27"
-        height="0.12"
-        color="#90a4ae"
-      ></a-cylinder>
+      <!-- กลุ่มโมเดลปลา (Entity นี้จะหมุนรอบตัวเอง ทำให้ปลาดูเหมือนว่ายน้ำเป็นวงกลม) -->
+      <a-entity id="fish-assembly" position="0 0.5 0" spin-control="axis: y; speed: 120; active: true">
+        
+        <!-- ตัวปลา (ใช้ทรงกลมแล้วบีบสเกลให้แบน) -->
+        <a-sphere
+          id="fish-body"
+          position="0.3 0 0"
+          radius="0.4"
+          scale="1 0.6 0.35"
+          color="#ff69b4"
+          metalness="0.1"
+          roughness="0.5"
+        ></a-sphere>
 
-      <!-- Shaft assembly: parent fixes the shaft direction; child spins locally -->
-      <a-entity position="0.52 0.47 0" rotation="0 0 90">
-        <a-cylinder
-          id="shaft"
-          radius="0.09"
-          height="0.42"
-          color="#cfd8dc"
-          metalness="0.8"
-          roughness="0.2"
-          spin-control="axis: y; speed: 220; active: true"
-        >
-          <a-box position="0 0.12 0.09" width="0.05" height="0.18" depth="0.06" color="#ffeb3b"></a-box>
-        </a-cylinder>
+        <!-- หางปลา (ใช้ทรงกรวยแนวนอน) -->
+        <a-cone
+          id="fish-tail"
+          position="-0.25 0 0"
+          rotation="0 0 -90"
+          radius-bottom="0.25"
+          radius-top="0.02"
+          height="0.4"
+          color="#ff69b4"
+          scale="1 1 0.3"
+        ></a-cone>
+
+        <!-- ตาซ้าย -->
+        <a-sphere position="0.5 0.1 0.13" radius="0.06" color="#ffffff">
+          <a-sphere position="0.02 0 0.04" radius="0.03" color="#000000"></a-sphere>
+        </a-sphere>
+
+        <!-- ตาขวา -->
+        <a-sphere position="0.5 0.1 -0.13" radius="0.06" color="#ffffff">
+          <a-sphere position="0.02 0 -0.04" radius="0.03" color="#000000"></a-sphere>
+        </a-sphere>
+
       </a-entity>
 
-      <!-- Status lamp -->
+      <!-- Status lamp (ไฟสถานะด้านบน) -->
       <a-sphere
         id="warning-lamp"
-        position="0 0.87 0"
+        position="0 1.2 0"
         radius="0.075"
         color="#00e676"
         material="emissive: #00c853; emissiveIntensity: 0.8"
@@ -231,8 +232,8 @@
       <!-- AR information label -->
       <a-text
         id="ar-label"
-        value="MOTOR M1\nSTATUS: NORMAL"
-        position="0 1.12 0"
+        value="FISH 01\nSTATUS: NORMAL"
+        position="0 1.45 0"
         rotation="-90 0 0"
         align="center"
         width="2.4"
