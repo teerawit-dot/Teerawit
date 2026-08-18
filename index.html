@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>Simple Mobile AR Lab - Many Goldfish</title>
+  <title>Simple Mobile AR Lab - Realistic Goldfish</title>
 
-  <!-- Open-source libraries. The versions are pinned so A-Frame and AR.js match. -->
+  <!-- Open-source libraries -->
   <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
   <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.7/aframe/build/aframe-ar.js"></script>
 
@@ -35,16 +35,23 @@
       backdrop-filter: blur(4px);
     }
 
-    #controls {
+    .controls-container {
       position: fixed;
       left: 0;
       right: 0;
       bottom: 18px;
       z-index: 20;
       display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      padding: 0 12px;
+    }
+
+    .main-buttons {
+      display: flex;
       justify-content: center;
       gap: 10px;
-      padding: 0 12px;
     }
 
     button {
@@ -53,7 +60,7 @@
       border: 0;
       border-radius: 12px;
       padding: 10px 14px;
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 700;
       cursor: pointer;
       touch-action: manipulation;
@@ -62,32 +69,82 @@
     #run-button { background: #ffffff; color: #111111; }
     #status-button { background: #ffd54f; color: #111111; }
 
+    .sliders-panel {
+      background: rgba(0, 0, 0, 0.68);
+      padding: 12px 16px;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: min(92vw, 400px);
+      backdrop-filter: blur(4px);
+    }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      color: white;
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    .slider-row label {
+      width: 50px;
+    }
+
+    .slider-row input[type=range] {
+      flex: 1;
+      margin-left: 10px;
+      accent-color: #FF9800;
+    }
+
     .hint {
       display: block;
       margin-top: 4px;
       font-size: 12px;
       opacity: 0.8;
+      font-weight: normal;
     }
   </style>
 
   <script>
-    // Component สำหรับหมุนวัตถุ (เอาไว้ให้ปลาว่ายวนเป็นวงกลม)
+    // 1. Component ควบคุมการว่ายเป็นวงกลม (หมุนรอบจุดศูนย์กลาง)
     AFRAME.registerComponent('spin-control', {
       schema: {
-        axis: { type: 'string', default: 'y' },
         speed: { type: 'number', default: 90 }, 
         active: { type: 'boolean', default: true }
       },
-
       tick: function (_time, deltaMs) {
         if (!this.data.active || !deltaMs) return;
-
         const radians = THREE.MathUtils.degToRad(this.data.speed * deltaMs / 1000);
-        const axis = this.data.axis;
+        this.el.object3D.rotation.y += radians;
+      }
+    });
 
-        if (axis === 'x') this.el.object3D.rotation.x += radians;
-        if (axis === 'y') this.el.object3D.rotation.y += radians;
-        if (axis === 'z') this.el.object3D.rotation.z += radians;
+    // 2. Component อนิเมชันทำให้ปลาดูเหมือนมีชีวิต (ส่ายหาง & ว่ายขยับขึ้นลง)
+    AFRAME.registerComponent('fish-animation', {
+      schema: { 
+        speed: { type: 'number', default: 100 }, 
+        active: { type: 'boolean', default: true } 
+      },
+      init: function() {
+        this.baseY = this.el.object3D.position.y;
+        const tailEl = this.el.querySelector('.tail-pivot');
+        if (tailEl) this.tail = tailEl.object3D;
+      },
+      tick: function (time, delta) {
+        if (!this.data.active || this.data.speed === 0) return;
+        
+        // อัตราความเร็วสัมพัทธ์ (ยิ่งตั้งความเร็วมาก หางยิ่งส่ายเร็ว)
+        const speedFactor = this.data.speed / 100;
+        
+        // แอนิเมชันลอยตัวขึ้นลงเบาๆ (Bobbing)
+        this.el.object3D.position.y = this.baseY + Math.sin(time * 0.003 * speedFactor) * 0.03;
+        
+        // แอนิเมชันส่ายหางซ้าย-ขวา (Tail Wagging)
+        if (this.tail) {
+           this.tail.rotation.y = Math.sin(time * 0.015 * Math.max(speedFactor, 0.5)) * 0.4; // 0.4 rad ≈ 22 องศา
+        }
       }
     });
 
@@ -96,37 +153,60 @@
       const warningLamp = document.querySelector('#warning-lamp');
       const arLabel = document.querySelector('#ar-label');
       const topPanel = document.querySelector('#top-panel');
+      
+      // ปุ่มควบคุม
       const runButton = document.querySelector('#run-button');
       const statusButton = document.querySelector('#status-button');
-
+      
       let running = true;
       let warning = false;
 
+      // ระบบจัดการ Marker
       marker.addEventListener('markerFound', () => {
-        topPanel.innerHTML = 'พบ Hiro Marker แล้ว — ฝูงปลาทองพร้อมใช้งาน<span class="hint">แตะปุ่มด้านล่างเพื่อทดลองควบคุม</span>';
+        topPanel.innerHTML = 'พบ Hiro Marker แล้ว — ฝูงปลาพร้อมใช้งาน<span class="hint">ใช้แถบเลื่อนด้านล่างเพื่อปรับความเร็วปลาแต่ละตัว</span>';
       });
-
       marker.addEventListener('markerLost', () => {
-        topPanel.innerHTML = 'เล็งกล้องไปที่ Hiro Marker<span class="hint">วาง Marker บนโต๊ะที่มีแสงเพียงพอและให้เห็นกรอบดำครบทั้งสี่ด้าน</span>';
+        topPanel.innerHTML = 'เล็งกล้องไปที่ Hiro Marker<span class="hint">วาง Marker บนโต๊ะที่มีแสงเพียงพอและให้เห็นกรอบดำครบ</span>';
       });
 
-      // ควบคุมการว่ายน้ำของปลา "ทุกตัว"
+      // ควบคุมความเร็วปลาแต่ละตัวผ่าน Slider
+      const fishConfigs = [
+        { id: 1, defaultSpeed: 140 },
+        { id: 2, defaultSpeed: 80 },
+        { id: 3, defaultSpeed: 110 }
+      ];
+
+      fishConfigs.forEach(config => {
+        const slider = document.getElementById(`speed${config.id}`);
+        const orbit = document.getElementById(`fish${config.id}-orbit`);
+        const model = document.getElementById(`fish${config.id}-model`);
+
+        slider.addEventListener('input', (e) => {
+          const currentSpeed = parseFloat(e.target.value);
+          orbit.setAttribute('spin-control', 'speed', currentSpeed);
+          model.setAttribute('fish-animation', 'speed', currentSpeed);
+        });
+      });
+
+      // ควบคุมการหยุด/เริ่มว่ายน้ำของปลา "ทุกตัว"
       runButton.addEventListener('click', () => {
         running = !running;
-        document.querySelectorAll('.fish-assembly').forEach(fish => {
-          fish.setAttribute('spin-control', 'active', running);
+        document.querySelectorAll('.fish-orbit').forEach(orbit => {
+          orbit.setAttribute('spin-control', 'active', running);
         });
-        runButton.textContent = running ? 'หยุดว่ายน้ำ' : 'เริ่มว่ายน้ำ';
+        document.querySelectorAll('.fish-model').forEach(model => {
+          model.setAttribute('fish-animation', 'active', running);
+        });
+        runButton.textContent = running ? 'เริ่มว่ายน้ำ' : 'หยุดว่ายน้ำ';
       });
 
       // ควบคุมสถานะ สีของปลาทุกตัว และไฟแจ้งเตือน
       statusButton.addEventListener('click', () => {
         warning = !warning;
         
-        // กำหนดสี: แจ้งเตือน = สีแดง, ปกติ = สีส้มทอง
+        // แจ้งเตือน = สีแดง (#ff3333), ปกติ = สีส้มทอง (#FF9800)
         const newColor = warning ? '#ff3333' : '#FF9800'; 
 
-        // เปลี่ยนสีลำตัวและหางของปลาทุกตัว
         document.querySelectorAll('.fish-body, .fish-tail').forEach(part => {
           part.setAttribute('color', newColor);
         });
@@ -153,9 +233,26 @@
     <span class="hint">อนุญาตให้เว็บไซต์ใช้กล้องเมื่อเบราว์เซอร์ถาม</span>
   </div>
 
-  <div id="controls">
-    <button id="run-button" type="button">หยุดว่ายน้ำ</button>
-    <button id="status-button" type="button">จำลองคำเตือน</button>
+  <!-- แผงควบคุมทั้งหมด -->
+  <div class="controls-container">
+    <div class="sliders-panel">
+      <div class="slider-row">
+        <label>ปลา 1</label>
+        <input type="range" id="speed1" min="0" max="300" value="140">
+      </div>
+      <div class="slider-row">
+        <label>ปลา 2</label>
+        <input type="range" id="speed2" min="0" max="300" value="80">
+      </div>
+      <div class="slider-row">
+        <label>ปลา 3</label>
+        <input type="range" id="speed3" min="0" max="300" value="110">
+      </div>
+    </div>
+    <div class="main-buttons">
+      <button id="run-button" type="button">หยุดว่ายน้ำ</button>
+      <button id="status-button" type="button">จำลองคำเตือน</button>
+    </div>
   </div>
 
   <a-scene
@@ -183,31 +280,42 @@
         opacity="0.8"
       ></a-cylinder>
 
-      <!-- ปลาตัวที่ 1 (วงในสุด ว่ายเร็วสุด) -->
-      <a-entity class="fish-assembly" position="0 0.3 0" rotation="0 0 0" spin-control="axis: y; speed: 130; active: true">
-        <a-entity position="0.35 0 0" scale="0.7 0.7 0.7">
+      <!-- ปลาตัวที่ 1 (วงในสุด) -->
+      <a-entity id="fish1-orbit" class="fish-orbit" position="0 0 0" spin-control="speed: 140; active: true">
+        <!-- ตัวโมเดลปลาจะถูกขยับรัศมี (X) และความสูง (Y) จากจุดศูนย์กลาง -->
+        <a-entity id="fish1-model" class="fish-model" position="0.35 0.3 0" scale="0.7 0.7 0.7" fish-animation="speed: 140; active: true">
           <a-sphere class="fish-body" position="0 0 0" radius="0.4" scale="1 0.6 0.35" color="#FF9800"></a-sphere>
-          <a-cone class="fish-tail" position="-0.4 0 0" rotation="0 0 -90" radius-bottom="0.25" radius-top="0.02" height="0.3" color="#FF9800" scale="1 1 0.3"></a-cone>
+          
+          <!-- จุดหมุนหางปลา (Pivot) สำหรับทำแอนิเมชัน -->
+          <a-entity class="tail-pivot" position="-0.4 0 0">
+            <a-cone class="fish-tail" position="-0.15 0 0" rotation="0 0 -90" radius-bottom="0.25" radius-top="0.02" height="0.3" color="#FF9800" scale="1 1 0.3"></a-cone>
+          </a-entity>
+          
+          <!-- ตาปลา -->
           <a-sphere position="0.2 0.1 0.13" radius="0.06" color="#ffffff"><a-sphere position="0.02 0 0.04" radius="0.03" color="#000000"></a-sphere></a-sphere>
           <a-sphere position="0.2 0.1 -0.13" radius="0.06" color="#ffffff"><a-sphere position="0.02 0 -0.04" radius="0.03" color="#000000"></a-sphere></a-sphere>
         </a-entity>
       </a-entity>
 
-      <!-- ปลาตัวที่ 2 (วงนอก ว่ายช้าลง) -->
-      <a-entity class="fish-assembly" position="0 0.5 0" rotation="0 120 0" spin-control="axis: y; speed: 90; active: true">
-        <a-entity position="0.65 0 0" scale="0.9 0.9 0.9">
+      <!-- ปลาตัวที่ 2 (วงนอกสุด ว่ายช้า) -->
+      <a-entity id="fish2-orbit" class="fish-orbit" position="0 0 0" rotation="0 120 0" spin-control="speed: 80; active: true">
+        <a-entity id="fish2-model" class="fish-model" position="0.65 0.5 0" scale="0.9 0.9 0.9" fish-animation="speed: 80; active: true">
           <a-sphere class="fish-body" position="0 0 0" radius="0.4" scale="1 0.6 0.35" color="#FF9800"></a-sphere>
-          <a-cone class="fish-tail" position="-0.4 0 0" rotation="0 0 -90" radius-bottom="0.25" radius-top="0.02" height="0.3" color="#FF9800" scale="1 1 0.3"></a-cone>
+          <a-entity class="tail-pivot" position="-0.4 0 0">
+            <a-cone class="fish-tail" position="-0.15 0 0" rotation="0 0 -90" radius-bottom="0.25" radius-top="0.02" height="0.3" color="#FF9800" scale="1 1 0.3"></a-cone>
+          </a-entity>
           <a-sphere position="0.2 0.1 0.13" radius="0.06" color="#ffffff"><a-sphere position="0.02 0 0.04" radius="0.03" color="#000000"></a-sphere></a-sphere>
           <a-sphere position="0.2 0.1 -0.13" radius="0.06" color="#ffffff"><a-sphere position="0.02 0 -0.04" radius="0.03" color="#000000"></a-sphere></a-sphere>
         </a-entity>
       </a-entity>
 
-      <!-- ปลาตัวที่ 3 (ระดับบนสุด ว่ายด้วยความเร็วปานกลาง) -->
-      <a-entity class="fish-assembly" position="0 0.7 0" rotation="0 240 0" spin-control="axis: y; speed: 110; active: true">
-        <a-entity position="0.5 0 0" scale="0.8 0.8 0.8">
+      <!-- ปลาตัวที่ 3 (ระดับบน ว่ายปานกลาง) -->
+      <a-entity id="fish3-orbit" class="fish-orbit" position="0 0 0" rotation="0 240 0" spin-control="speed: 110; active: true">
+        <a-entity id="fish3-model" class="fish-model" position="0.5 0.7 0" scale="0.8 0.8 0.8" fish-animation="speed: 110; active: true">
           <a-sphere class="fish-body" position="0 0 0" radius="0.4" scale="1 0.6 0.35" color="#FF9800"></a-sphere>
-          <a-cone class="fish-tail" position="-0.4 0 0" rotation="0 0 -90" radius-bottom="0.25" radius-top="0.02" height="0.3" color="#FF9800" scale="1 1 0.3"></a-cone>
+          <a-entity class="tail-pivot" position="-0.4 0 0">
+            <a-cone class="fish-tail" position="-0.15 0 0" rotation="0 0 -90" radius-bottom="0.25" radius-top="0.02" height="0.3" color="#FF9800" scale="1 1 0.3"></a-cone>
+          </a-entity>
           <a-sphere position="0.2 0.1 0.13" radius="0.06" color="#ffffff"><a-sphere position="0.02 0 0.04" radius="0.03" color="#000000"></a-sphere></a-sphere>
           <a-sphere position="0.2 0.1 -0.13" radius="0.06" color="#ffffff"><a-sphere position="0.02 0 -0.04" radius="0.03" color="#000000"></a-sphere></a-sphere>
         </a-entity>
