@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>Simple Mobile AR Lab - AR Fish Status</title>
+  <title>Simple Mobile AR Lab - Many Goldfish</title>
 
   <!-- Open-source libraries. The versions are pinned so A-Frame and AR.js match. -->
   <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
@@ -75,7 +75,7 @@
     AFRAME.registerComponent('spin-control', {
       schema: {
         axis: { type: 'string', default: 'y' },
-        speed: { type: 'number', default: 90 }, // ปรับให้ปลาหมุนช้าลงหน่อย
+        speed: { type: 'number', default: 90 }, 
         active: { type: 'boolean', default: true }
       },
 
@@ -93,9 +93,6 @@
 
     window.addEventListener('DOMContentLoaded', () => {
       const marker = document.querySelector('#hiro-marker');
-      const fishAssembly = document.querySelector('#fish-assembly');
-      const fishBody = document.querySelector('#fish-body');
-      const fishTail = document.querySelector('#fish-tail');
       const warningLamp = document.querySelector('#warning-lamp');
       const arLabel = document.querySelector('#ar-label');
       const topPanel = document.querySelector('#top-panel');
@@ -106,39 +103,43 @@
       let warning = false;
 
       marker.addEventListener('markerFound', () => {
-        topPanel.innerHTML = 'พบ Hiro Marker แล้ว — โมเดลปลาพร้อมใช้งาน<span class="hint">แตะปุ่มด้านล่างเพื่อทดลองควบคุม</span>';
+        topPanel.innerHTML = 'พบ Hiro Marker แล้ว — ฝูงปลาทองพร้อมใช้งาน<span class="hint">แตะปุ่มด้านล่างเพื่อทดลองควบคุม</span>';
       });
 
       marker.addEventListener('markerLost', () => {
         topPanel.innerHTML = 'เล็งกล้องไปที่ Hiro Marker<span class="hint">วาง Marker บนโต๊ะที่มีแสงเพียงพอและให้เห็นกรอบดำครบทั้งสี่ด้าน</span>';
       });
 
-      // ควบคุมการว่ายน้ำของปลา
+      // ควบคุมการว่ายน้ำของปลา "ทุกตัว"
       runButton.addEventListener('click', () => {
         running = !running;
-        fishAssembly.setAttribute('spin-control', 'active', running);
+        document.querySelectorAll('.fish-assembly').forEach(fish => {
+          fish.setAttribute('spin-control', 'active', running);
+        });
         runButton.textContent = running ? 'หยุดว่ายน้ำ' : 'เริ่มว่ายน้ำ';
       });
 
-      // ควบคุมสถานะ สีของปลา และไฟแจ้งเตือน
+      // ควบคุมสถานะ สีของปลาทุกตัว และไฟแจ้งเตือน
       statusButton.addEventListener('click', () => {
         warning = !warning;
+        
+        // กำหนดสี: แจ้งเตือน = สีแดง, ปกติ = สีส้มทอง
+        const newColor = warning ? '#ff3333' : '#FF9800'; 
+
+        // เปลี่ยนสีลำตัวและหางของปลาทุกตัว
+        document.querySelectorAll('.fish-body, .fish-tail').forEach(part => {
+          part.setAttribute('color', newColor);
+        });
 
         if (warning) {
-          // สถานะแจ้งเตือน: เปลี่ยนปลาเป็น สีเขียว (#4caf50)
-          fishBody.setAttribute('color', '#4caf50');
-          fishTail.setAttribute('color', '#4caf50');
           warningLamp.setAttribute('color', '#ff1744');
           warningLamp.setAttribute('material', 'emissive', '#ff1744');
-          arLabel.setAttribute('value', 'FISH 01\nSTATUS: WARNING');
+          arLabel.setAttribute('value', 'GOLDFISH\nSTATUS: WARNING');
           statusButton.textContent = 'เปลี่ยนเป็นปกติ';
         } else {
-          // สถานะปกติ: เปลี่ยนปลากลับเป็น สีชมพู (#ff69b4)
-          fishBody.setAttribute('color', '#ff69b4');
-          fishTail.setAttribute('color', '#ff69b4');
           warningLamp.setAttribute('color', '#00e676');
           warningLamp.setAttribute('material', 'emissive', '#00c853');
-          arLabel.setAttribute('value', 'FISH 01\nSTATUS: NORMAL');
+          arLabel.setAttribute('value', 'GOLDFISH\nSTATUS: NORMAL');
           statusButton.textContent = 'จำลองคำเตือน';
         }
       });
@@ -172,55 +173,47 @@
       smooth-tolerance="0.01"
       smooth-threshold="3"
     >
-      <!-- ฐานสำหรับวางปลา (ทำเป็นลักษณะคล้ายบ่อน้ำ/แท่นสีน้ำเงินใสๆ) -->
+      <!-- ฐานสำหรับวางปลา (บ่อน้ำจำลอง) -->
       <a-cylinder
         position="0 0.04 0"
-        radius="0.8"
+        radius="0.9"
         height="0.05"
         color="#0288d1"
         roughness="0.2"
         opacity="0.8"
       ></a-cylinder>
 
-      <!-- กลุ่มโมเดลปลา (Entity นี้จะหมุนรอบตัวเอง ทำให้ปลาดูเหมือนว่ายน้ำเป็นวงกลม) -->
-      <a-entity id="fish-assembly" position="0 0.5 0" spin-control="axis: y; speed: 120; active: true">
-        
-        <!-- ตัวปลา (ใช้ทรงกลมแล้วบีบสเกลให้แบน) -->
-        <a-sphere
-          id="fish-body"
-          position="0.3 0 0"
-          radius="0.4"
-          scale="1 0.6 0.35"
-          color="#ff69b4"
-          metalness="0.1"
-          roughness="0.5"
-        ></a-sphere>
-
-        <!-- หางปลา (ใช้ทรงกรวยแนวนอน) -->
-        <a-cone
-          id="fish-tail"
-          position="-0.25 0 0"
-          rotation="0 0 -90"
-          radius-bottom="0.25"
-          radius-top="0.02"
-          height="0.4"
-          color="#ff69b4"
-          scale="1 1 0.3"
-        ></a-cone>
-
-        <!-- ตาซ้าย -->
-        <a-sphere position="0.5 0.1 0.13" radius="0.06" color="#ffffff">
-          <a-sphere position="0.02 0 0.04" radius="0.03" color="#000000"></a-sphere>
-        </a-sphere>
-
-        <!-- ตาขวา -->
-        <a-sphere position="0.5 0.1 -0.13" radius="0.06" color="#ffffff">
-          <a-sphere position="0.02 0 -0.04" radius="0.03" color="#000000"></a-sphere>
-        </a-sphere>
-
+      <!-- ปลาตัวที่ 1 (วงในสุด ว่ายเร็วสุด) -->
+      <a-entity class="fish-assembly" position="0 0.3 0" rotation="0 0 0" spin-control="axis: y; speed: 130; active: true">
+        <a-entity position="0.35 0 0" scale="0.7 0.7 0.7">
+          <a-sphere class="fish-body" position="0 0 0" radius="0.4" scale="1 0.6 0.35" color="#FF9800"></a-sphere>
+          <a-cone class="fish-tail" position="-0.4 0 0" rotation="0 0 -90" radius-bottom="0.25" radius-top="0.02" height="0.3" color="#FF9800" scale="1 1 0.3"></a-cone>
+          <a-sphere position="0.2 0.1 0.13" radius="0.06" color="#ffffff"><a-sphere position="0.02 0 0.04" radius="0.03" color="#000000"></a-sphere></a-sphere>
+          <a-sphere position="0.2 0.1 -0.13" radius="0.06" color="#ffffff"><a-sphere position="0.02 0 -0.04" radius="0.03" color="#000000"></a-sphere></a-sphere>
+        </a-entity>
       </a-entity>
 
-      <!-- Status lamp (ไฟสถานะด้านบน) -->
+      <!-- ปลาตัวที่ 2 (วงนอก ว่ายช้าลง) -->
+      <a-entity class="fish-assembly" position="0 0.5 0" rotation="0 120 0" spin-control="axis: y; speed: 90; active: true">
+        <a-entity position="0.65 0 0" scale="0.9 0.9 0.9">
+          <a-sphere class="fish-body" position="0 0 0" radius="0.4" scale="1 0.6 0.35" color="#FF9800"></a-sphere>
+          <a-cone class="fish-tail" position="-0.4 0 0" rotation="0 0 -90" radius-bottom="0.25" radius-top="0.02" height="0.3" color="#FF9800" scale="1 1 0.3"></a-cone>
+          <a-sphere position="0.2 0.1 0.13" radius="0.06" color="#ffffff"><a-sphere position="0.02 0 0.04" radius="0.03" color="#000000"></a-sphere></a-sphere>
+          <a-sphere position="0.2 0.1 -0.13" radius="0.06" color="#ffffff"><a-sphere position="0.02 0 -0.04" radius="0.03" color="#000000"></a-sphere></a-sphere>
+        </a-entity>
+      </a-entity>
+
+      <!-- ปลาตัวที่ 3 (ระดับบนสุด ว่ายด้วยความเร็วปานกลาง) -->
+      <a-entity class="fish-assembly" position="0 0.7 0" rotation="0 240 0" spin-control="axis: y; speed: 110; active: true">
+        <a-entity position="0.5 0 0" scale="0.8 0.8 0.8">
+          <a-sphere class="fish-body" position="0 0 0" radius="0.4" scale="1 0.6 0.35" color="#FF9800"></a-sphere>
+          <a-cone class="fish-tail" position="-0.4 0 0" rotation="0 0 -90" radius-bottom="0.25" radius-top="0.02" height="0.3" color="#FF9800" scale="1 1 0.3"></a-cone>
+          <a-sphere position="0.2 0.1 0.13" radius="0.06" color="#ffffff"><a-sphere position="0.02 0 0.04" radius="0.03" color="#000000"></a-sphere></a-sphere>
+          <a-sphere position="0.2 0.1 -0.13" radius="0.06" color="#ffffff"><a-sphere position="0.02 0 -0.04" radius="0.03" color="#000000"></a-sphere></a-sphere>
+        </a-entity>
+      </a-entity>
+
+      <!-- Status lamp (ไฟสถานะด้านบนสุด) -->
       <a-sphere
         id="warning-lamp"
         position="0 1.2 0"
@@ -232,7 +225,7 @@
       <!-- AR information label -->
       <a-text
         id="ar-label"
-        value="FISH 01\nSTATUS: NORMAL"
+        value="GOLDFISH\nSTATUS: NORMAL"
         position="0 1.45 0"
         rotation="-90 0 0"
         align="center"
