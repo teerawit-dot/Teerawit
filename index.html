@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>Simple Mobile AR Lab - Natural Swimming Goldfish</title>
+  <title>Simple Mobile AR Lab - Screen Bounded Goldfish</title>
 
   <!-- Open-source libraries -->
   <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
@@ -108,22 +108,22 @@
   </style>
 
   <script>
-    // 1. Component ระบบ AI ควบคุมปลาให้ว่ายน้ำอย่างเป็นธรรมชาติ
-    AFRAME.registerComponent('random-swim', {
+    // 1. Component ควบคุมการว่ายแบบจำกัดให้อยู่ในพื้นที่หน้าจอ/กล้อง
+    AFRAME.registerComponent('screen-bounded-swim', {
       schema: {
-        speed: { type: 'number', default: 100 }, // ความเร็วจาก Slider
+        speed: { type: 'number', default: 100 },
         active: { type: 'boolean', default: true },
-        boundsRadius: { type: 'number', default: 0.8 }, // รัศมีบ่อน้ำ
-        minY: { type: 'number', default: 0.2 }, // ว่ายต่ำสุด
-        maxY: { type: 'number', default: 0.7 }  // ว่ายสูงสุด
+        boundsRadius: { type: 'number', default: 0.4 }, // บีบรัศมีให้อยู่ตรงกลาง Marker
+        minY: { type: 'number', default: 0.15 },
+        maxY: { type: 'number', default: 0.45 }
       },
       init: function() {
         this.target = new THREE.Vector3();
-        this.dummy = new THREE.Object3D(); // ใช้สำหรับคำนวณการหมุนตัว
+        this.dummy = new THREE.Object3D();
         this.setNewTarget();
       },
       setNewTarget: function() {
-        // สุ่มตำแหน่งใหม่ภายในบ่อน้ำ
+        // สุ่มจุดเป้าหมายใหม่อยู่ในระยะแคบๆ ตรงกลาง
         const angle = Math.random() * Math.PI * 2;
         const radius = Math.random() * this.data.boundsRadius;
         this.target.x = Math.cos(angle) * radius;
@@ -136,27 +136,30 @@
         const el = this.el;
         const pos = el.object3D.position;
 
-        // ถ้าระยะทางใกล้ถึงเป้าหมายแล้ว ให้สุ่มเป้าหมายใหม่
-        if (pos.distanceTo(this.target) < 0.2) {
+        // คำนวณระยะห่างจากจุดศูนย์กลาง (ระนาบ XZ)
+        const distFromCenter = Math.sqrt(pos.x * pos.x + pos.z * pos.z);
+
+        // ถ้าออกนอกรัศมีขอบเขต ให้บังคับจุดเป้าหมายกลับเข้าหาศูนย์กลาง
+        if (distFromCenter > this.data.boundsRadius + 0.1) {
+          this.target.set(0, (this.data.minY + this.data.maxY) / 2, 0);
+        } else if (pos.distanceTo(this.target) < 0.15) {
           this.setNewTarget();
         }
 
-        // ทำให้ปลาหันหน้าไปหาเป้าหมายอย่างนุ่มนวล (Smooth Turn)
+        // ค่อยๆ หันหน้าไปทิศทางเป้าหมาย
         this.dummy.position.copy(pos);
         this.dummy.lookAt(this.target);
         
-        // slerp คือการทำอนิเมชั่นหมุนตัวอย่างต่อเนื่อง
-        const turnSpeed = 2.5 * (delta / 1000);
+        const turnSpeed = 3.5 * (delta / 1000); // หันตัวไวขึ้นเล็กน้อยเมื่อถึงขอบ
         el.object3D.quaternion.slerp(this.dummy.quaternion, turnSpeed);
 
-        // ว่ายตรงไปข้างหน้า (แกน -Z ของตัวปลา)
-        // คำนวณความเร็วจริงตาม Slider (100 = 0.2 units per sec)
-        const moveSpeed = (this.data.speed / 500) * (delta / 1000);
+        // ว่ายตรงไปข้างหน้าตามแกน -Z
+        const moveSpeed = (this.data.speed / 600) * (delta / 1000);
         el.object3D.translateZ(-moveSpeed);
       }
     });
 
-    // 2. Component อนิเมชันทำให้หางปลาส่ายตามความเร็ว
+    // 2. Component อนิเมชันส่ายหาง
     AFRAME.registerComponent('fish-animation', {
       schema: { 
         speed: { type: 'number', default: 100 }, 
@@ -170,8 +173,6 @@
         if (!this.data.active || this.data.speed === 0) return;
         
         const speedFactor = this.data.speed / 100;
-        
-        // แอนิเมชันส่ายหางซ้าย-ขวา
         if (this.tail) {
            this.tail.rotation.y = Math.sin(time * 0.015 * Math.max(speedFactor, 0.4)) * 0.4;
         }
@@ -191,37 +192,35 @@
       let warning = false;
 
       marker.addEventListener('markerFound', () => {
-        topPanel.innerHTML = 'พบ Hiro Marker แล้ว — ฝูงปลาพร้อมใช้งาน<span class="hint">ปลากำลังว่ายน้ำอย่างเป็นธรรมชาติ ปรับความเร็วได้อิสระ</span>';
+        topPanel.innerHTML = 'พบ Hiro Marker แล้ว — ปลาจะว่ายวนอยู่เฉพาะกลางหน้าจอ<span class="hint">ปรับความเร็วการว่ายของแต่ละตัวได้ตามต้องการ</span>';
       });
       marker.addEventListener('markerLost', () => {
         topPanel.innerHTML = 'เล็งกล้องไปที่ Hiro Marker<span class="hint">วาง Marker บนโต๊ะที่มีแสงเพียงพอและให้เห็นกรอบดำครบ</span>';
       });
 
-      // ควบคุมความเร็วผ่าน Slider แยกปลาแต่ละตัว
-      const fishConfigs = [1, 2, 3];
-
-      fishConfigs.forEach(id => {
+      // Slider ควบคุมความเร็ว
+      [1, 2, 3].forEach(id => {
         const slider = document.getElementById(`speed${id}`);
         const model = document.getElementById(`fish${id}`);
 
         slider.addEventListener('input', (e) => {
           const currentSpeed = parseFloat(e.target.value);
-          model.setAttribute('random-swim', 'speed', currentSpeed);
+          model.setAttribute('screen-bounded-swim', 'speed', currentSpeed);
           model.setAttribute('fish-animation', 'speed', currentSpeed);
         });
       });
 
-      // ควบคุมการหยุด/เริ่มว่ายน้ำ
+      // ปุ่มเริ่ม/หยุด
       runButton.addEventListener('click', () => {
         running = !running;
         document.querySelectorAll('.fish-entity').forEach(model => {
-          model.setAttribute('random-swim', 'active', running);
+          model.setAttribute('screen-bounded-swim', 'active', running);
           model.setAttribute('fish-animation', 'active', running);
         });
-        runButton.textContent = running ? 'เริ่มว่ายน้ำ' : 'หยุดว่ายน้ำ';
+        runButton.textContent = running ? 'หยุดว่ายน้ำ' : 'เริ่มว่ายน้ำ';
       });
 
-      // ควบคุมสถานะ สีของปลา และไฟแจ้งเตือน
+      // ปุ่มจำลองคำเตือน
       statusButton.addEventListener('click', () => {
         warning = !warning;
         
@@ -257,15 +256,15 @@
     <div class="sliders-panel">
       <div class="slider-row">
         <label>ปลา 1</label>
-        <input type="range" id="speed1" min="0" max="250" value="120">
+        <input type="range" id="speed1" min="0" max="250" value="110">
       </div>
       <div class="slider-row">
         <label>ปลา 2</label>
-        <input type="range" id="speed2" min="0" max="250" value="80">
+        <input type="range" id="speed2" min="0" max="250" value="70">
       </div>
       <div class="slider-row">
         <label>ปลา 3</label>
-        <input type="range" id="speed3" min="0" max="250" value="150">
+        <input type="range" id="speed3" min="0" max="250" value="130">
       </div>
     </div>
     <div class="main-buttons">
@@ -289,29 +288,28 @@
       smooth-tolerance="0.01"
       smooth-threshold="3"
     >
-      <!-- ฐานสำหรับวางปลา (บ่อน้ำจำลอง) -->
+      <!-- ฐานบ่อน้ำจำลอง (ปรับขนาดให้กระชับพอดีหน้าจอ) -->
       <a-cylinder
         position="0 0.04 0"
-        radius="1.0"
-        height="0.05"
+        radius="0.6"
+        height="0.04"
         color="#0288d1"
         roughness="0.2"
-        opacity="0.8"
+        opacity="0.75"
       ></a-cylinder>
 
-      <!-- ปลาตัวที่ 1 (ตัวโมเดลถูกสร้างให้หันหน้าไปทางแกน -Z เพื่อให้วิ่งไปข้างหน้าได้ถูกต้อง) -->
-      <a-entity id="fish1" class="fish-entity" position="0.3 0.3 0.3" scale="0.7 0.7 0.7" random-swim="speed: 120" fish-animation="speed: 120">
+      <!-- ปลาตัวที่ 1 -->
+      <a-entity id="fish1" class="fish-entity" position="0.1 0.25 0.1" scale="0.5 0.5 0.5" screen-bounded-swim="speed: 110" fish-animation="speed: 110">
         <a-sphere class="fish-body" position="0 0 0" radius="0.4" scale="0.35 0.6 1" color="#FF9800"></a-sphere>
         <a-entity class="tail-pivot" position="0 0 0.35">
           <a-cone class="fish-tail-cone" position="0 0 0.15" rotation="-90 0 0" radius-bottom="0.25" radius-top="0.02" height="0.3" color="#FF9800" scale="0.3 1 1"></a-cone>
         </a-entity>
-        <!-- ตาซ้ายและขวา -->
         <a-sphere position="-0.12 0.1 -0.2" radius="0.06" color="#ffffff"><a-sphere position="-0.02 0 -0.04" radius="0.03" color="#000000"></a-sphere></a-sphere>
         <a-sphere position="0.12 0.1 -0.2" radius="0.06" color="#ffffff"><a-sphere position="0.02 0 -0.04" radius="0.03" color="#000000"></a-sphere></a-sphere>
       </a-entity>
 
       <!-- ปลาตัวที่ 2 -->
-      <a-entity id="fish2" class="fish-entity" position="-0.4 0.5 0.1" scale="0.9 0.9 0.9" random-swim="speed: 80" fish-animation="speed: 80">
+      <a-entity id="fish2" class="fish-entity" position="-0.2 0.35 -0.1" scale="0.6 0.6 0.6" screen-bounded-swim="speed: 70" fish-animation="speed: 70">
         <a-sphere class="fish-body" position="0 0 0" radius="0.4" scale="0.35 0.6 1" color="#FF9800"></a-sphere>
         <a-entity class="tail-pivot" position="0 0 0.35">
           <a-cone class="fish-tail-cone" position="0 0 0.15" rotation="-90 0 0" radius-bottom="0.25" radius-top="0.02" height="0.3" color="#FF9800" scale="0.3 1 1"></a-cone>
@@ -321,7 +319,7 @@
       </a-entity>
 
       <!-- ปลาตัวที่ 3 -->
-      <a-entity id="fish3" class="fish-entity" position="0.2 0.6 -0.4" scale="0.8 0.8 0.8" random-swim="speed: 150" fish-animation="speed: 150">
+      <a-entity id="fish3" class="fish-entity" position="0.15 0.2 -0.2" scale="0.55 0.55 0.55" screen-bounded-swim="speed: 130" fish-animation="speed: 130">
         <a-sphere class="fish-body" position="0 0 0" radius="0.4" scale="0.35 0.6 1" color="#FF9800"></a-sphere>
         <a-entity class="tail-pivot" position="0 0 0.35">
           <a-cone class="fish-tail-cone" position="0 0 0.15" rotation="-90 0 0" radius-bottom="0.25" radius-top="0.02" height="0.3" color="#FF9800" scale="0.3 1 1"></a-cone>
@@ -333,8 +331,8 @@
       <!-- Status lamp -->
       <a-sphere
         id="warning-lamp"
-        position="0 1.2 0"
-        radius="0.075"
+        position="0 0.85 0"
+        radius="0.06"
         color="#00e676"
         material="emissive: #00c853; emissiveIntensity: 0.8"
       ></a-sphere>
@@ -343,10 +341,10 @@
       <a-text
         id="ar-label"
         value="GOLDFISH\nSTATUS: NORMAL"
-        position="0 1.45 0"
+        position="0 1.05 0"
         rotation="-90 0 0"
         align="center"
-        width="2.4"
+        width="2.0"
         color="#ffffff"
         side="double"
       ></a-text>
